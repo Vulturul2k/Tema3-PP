@@ -54,7 +54,7 @@ parse_expr s = case parse exprParser ("(" ++ s ++ ")") of
     Nothing -> error s
 
 exprParser :: Parser Expr
-exprParser = variableParser <|> functionParser <|> applicationParser
+exprParser = variableParser <|> functionParser <|> applicationParser <|> macroParser
 
 variableParser :: Parser Expr
 variableParser = do
@@ -102,6 +102,18 @@ charParser :: Char -> Parser Char
 charParser c = Parser $ \s -> case s of
                                 [] -> Nothing
                                 (x:xs) -> if x == c then Just (x, xs) else Nothing
+
+macroParser :: Parser Expr
+macroParser = do
+    _ <- charParser '$'
+    name <- identifierParser
+    return (Macro name)
+
+identifierParser :: Parser String
+identifierParser = do
+    x <- predicateParser isAlpha
+    xs <- many (predicateParser isAlphaNum)
+    return (x:xs)
 
 -- TODO 4.2. parse code
 parse_code :: String -> Code
