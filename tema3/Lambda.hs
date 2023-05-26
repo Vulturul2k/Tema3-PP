@@ -45,7 +45,6 @@ stepN (Application (Function x body) arg) = reduce body x arg
 stepN (Application e1 e2)
   | isApplication e1 = Application (stepN e1) e2 
   | otherwise = Application e1 (stepN e2)
-stepN (Macro name) = Macro name
 
 
 isApplication :: Expr -> Bool
@@ -112,8 +111,12 @@ evalMacros ctx expr = case expr of
 
 -- TODO 4.1. evaluate code sequence using given strategy
 evalCode :: (Expr -> Expr) -> [Code] -> [Expr]
-evalCode _ [] = []
-evalCode evalStrategy (code:codes) = case code of
-    Evaluate expr -> result : evalCode evalStrategy codes
-        where result = evalStrategy expr
-    Assign _ _ -> evalCode evalStrategy codes
+evalCode evalStrategy codes = evalCodeHelper [] evalStrategy codes
+
+evalCodeHelper :: [(String, Expr)] -> (Expr -> Expr) -> [Code] -> [Expr]
+evalCodeHelper _ _ [] = []
+evalCodeHelper macros evalStrategy (code:codes) = case code of
+  Evaluate expr -> result : evalCodeHelper macros evalStrategy codes
+    where
+      result = evalStrategy (evalMacros macros expr)
+  Assign name expr -> evalCodeHelper ((name, expr) : macros) evalStrategy codes

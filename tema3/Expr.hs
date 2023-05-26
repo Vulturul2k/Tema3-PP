@@ -24,9 +24,9 @@ macro = Macro -- TODO 3. add shorthand for Macro
 -- show instance 
 instance Show Expr where
     show (Variable x) = x
-    show (Function x (Application e1 e2)) = ('λ':x) ++ ".(" ++ (show e) ++ ")"
+    show (Function x (Application e1 e2)) = ('\\':x) ++ ".(" ++ (show e) ++ ")"
         where e = (Application e1 e2)
-    show (Function x e) = ('λ':x) ++ ('.':(show e))
+    show (Function x e) = ('\\':x) ++ ('.':(show e))
     show (Application e1 (Application u v)) = (show e1) ++ " (" ++ (show e2) ++ ")"
         where e2 = (Application u v)
     show (Application e1 e2) = (show e1) ++ (' ':(show e2))

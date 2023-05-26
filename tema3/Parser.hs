@@ -1,8 +1,10 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module Parser (parse_expr, parse_code) where
 
 import Control.Monad
 import Control.Applicative
-import Expr ( Code, Expr(..) )
+import Expr
 
 import Data.Char
 
@@ -117,4 +119,26 @@ identifierParser = do
 
 -- TODO 4.2. parse code
 parse_code :: String -> Code
-parse_code = undefined
+parse_code s = case parse codeParser s of
+    Just (code, _) -> code
+    Nothing -> error s
+
+codeParser :: Parser Code
+codeParser = assignParser <|> evaluateParser
+
+evaluateParser :: Parser Code
+evaluateParser = do
+  skipSpaces
+  expr <- exprParser
+  exprs <- many (skipSpaces >> exprParser)
+  let exprList = expr : exprs
+  return (Evaluate (foldl1 Application exprList))
+
+assignParser :: Parser Code
+assignParser = do
+    name <- identifierParser
+    skipSpaces
+    _ <- charParser '='
+    skipSpaces
+    expr <- exprParser
+    return (Assign name expr)
