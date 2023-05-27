@@ -16,25 +16,25 @@ reduce (Variable x) y e = if x == y then e else Variable x
 reduce (Function x body) y e
   | x == y = Function x body
   | x `elem` free_vars e =
-      let x2 = generateFreshVarName (x : free_vars body ++ free_vars e)
-      in Function x2 (reduce (renameVar body x x2) y e)
+      let x2 = createNewVarName (x : free_vars body ++ free_vars e)
+      in Function x2 (reduce (changeName body x x2) y e)
   | otherwise = Function x (reduce body y e)
 reduce (Application e1 e2) y e = Application (reduce e1 y e) (reduce e2 y e)
 
-generateFreshVarName :: [String] -> String
-generateFreshVarName usedVars = generateFreshVarNameUtil usedVars freshVars
+createNewVarName :: [String] -> String
+createNewVarName usedVars = createNewVarNameUtil usedVars newVars
   where
-    freshVars = [c : show n | n <- [1 ..], c <- ['a' .. 'z']]
+    newVars = [c : show n | n <- [1 ..], c <- ['a' .. 'z']]
 
-generateFreshVarNameUtil :: [String] -> [String] -> String
-generateFreshVarNameUtil usedVars (x:xs)
-  | x `elem` usedVars = generateFreshVarNameUtil usedVars xs
+createNewVarNameUtil :: [String] -> [String] -> String
+createNewVarNameUtil usedVars (x:xs)
+  | x `elem` usedVars = createNewVarNameUtil usedVars xs
   | otherwise = x
 
-renameVar :: Expr -> String -> String -> Expr
-renameVar (Variable x) old new = if x == old then Variable new else Variable x
-renameVar (Function x body) old new = if x == old then Function x body else Function x (renameVar body old new)
-renameVar (Application e1 e2) old new = Application (renameVar e1 old new) (renameVar e2 old new)
+changeName :: Expr -> String -> String -> Expr
+changeName (Variable x) old new = if x == old then Variable new else Variable x
+changeName (Function x body) old new = if x == old then Function x body else Function x (changeName body old new)
+changeName (Application e1 e2) old new = Application (changeName e1 old new) (changeName e2 old new)
 
 -- Normal Evaluation
 -- TODO 1.3. perform one step of Normal Evaluation
@@ -69,19 +69,12 @@ stepA :: Expr -> Expr
 stepA (Variable x) = Variable x
 stepA (Function x body) = Function x (stepA body)
 stepA (Application (Function x body) arg)
-  | isNormalForm body && isNormalForm arg = reduce body x arg
-  | isNormalForm arg = reduce body x arg
-  | isNormalForm body = Application (Function x body) (stepA arg)
+  | isApplication arg = Application (Function x body) (stepA arg)
   | otherwise = reduce body x arg
 stepA (Application e1 e2)
-  | isNormalForm e1 = Application e1 (stepA e2)
-  | otherwise = Application (stepA e1) e2
+  | isApplication e1 = Application (stepA e1) e2 
+  | otherwise = Application e1 (stepA e2)
 
-isNormalForm :: Expr -> Bool
-isNormalForm (Variable _) = True
-isNormalForm (Function _ body) = isNormalForm body
-isNormalForm (Application (Function _ _) _) = False
-isNormalForm (Application e1 e2) = isNormalForm e1 && isNormalForm e2
 
 
 -- TODO 1.6. perform Applicative Evaluation

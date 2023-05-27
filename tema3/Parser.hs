@@ -64,10 +64,10 @@ variableParser = do
     return (Variable [x])
 
 predicateParser :: (Char -> Bool) -> Parser Char
-predicateParser p = Parser $ \s ->
-    case s of
+predicateParser testing = Parser $
+    \s -> case s of
         [] -> Nothing
-        (x:xs) -> if p x then Just (x, xs) else Nothing
+        (x:xs) -> if testing x then Just (x, xs) else Nothing
 
 functionParser :: Parser Expr
 functionParser = do
@@ -76,6 +76,11 @@ functionParser = do
     _ <- charParser '.'
     e <- exprParser
     return (Function [x] e)
+
+exprParserFunc :: Parser Expr
+exprParserFunc = do
+    skipSpaces
+    exprParser
 
 applicationParser :: Parser Expr
 applicationParser = do
@@ -87,12 +92,8 @@ applicationParser = do
 
 buildApplication :: Expr -> [Expr] -> Expr
 buildApplication e [] = e
-buildApplication e (e' : es) = buildApplication (Application e e') es
+buildApplication e (e2 : es) = buildApplication (Application e e2) es
 
-exprParserFunc :: Parser Expr
-exprParserFunc = do
-    skipSpaces
-    exprParser
 
 skipSpaces :: Parser ()
 skipSpaces = do
@@ -113,9 +114,8 @@ macroParser = do
 
 identifierParser :: Parser String
 identifierParser = do
-    x <- predicateParser isAlpha
-    xs <- many (predicateParser isAlphaNum)
-    return (x:xs)
+    xs <- many (predicateParser isAlpha)
+    return xs
 
 -- TODO 4.2. parse code
 parse_code :: String -> Code
@@ -131,8 +131,7 @@ evaluateParser = do
   skipSpaces
   expr <- exprParser
   exprs <- many (skipSpaces >> exprParser)
-  let exprList = expr : exprs
-  return (Evaluate (foldl1 Application exprList))
+  return (Evaluate (foldl Application expr exprs))
 
 assignParser :: Parser Code
 assignParser = do
