@@ -7,46 +7,37 @@ import Expr
 
 free_vars :: Expr -> [String]
 free_vars (Variable x) = [x]
-free_vars (Function x e) = filter (/= x) (free_vars e)
+free_vars (Function x expr) = filter (/= x) (free_vars expr)
 free_vars (Application e1 e2) = nub (free_vars e1 ++ free_vars e2)
 
 -- TODO 1.2. reduce a redex
 reduce :: Expr -> String -> Expr -> Expr
-reduce (Variable x) y e = if x == y then e else Variable x
-reduce (Function x body) y e
-  | x == y = Function x body
-  | x `elem` free_vars e =
-      let x2 = createNewVarName (x : free_vars body ++ free_vars e)
-      in Function x2 (reduce (changeName body x x2) y e)
-  | otherwise = Function x (reduce body y e)
-reduce (Application e1 e2) y e = Application (reduce e1 y e) (reduce e2 y e)
-
-createNewVarName :: [String] -> String
-createNewVarName usedVars = createNewVarNameUtil usedVars newVars
+reduce (Variable x) var expr = if x == var then expr else Variable x
+reduce (Function x func) var expr
+  | x == var = Function x func
+  | x `elem` free_vars expr = Function x2 (reduce (reduce func x (Variable x2)) var expr)
+  | otherwise = Function x (reduce func var expr)
   where
-    newVars = [c : show n | n <- [1 ..], c <- ['a' .. 'z']]
+     x2 = createNewVarName (free_vars func ++ free_vars expr) x
+reduce (Application e1 e2) var expr = Application (reduce e1 var expr) (reduce e2 var expr)
 
-createNewVarNameUtil :: [String] -> [String] -> String
-createNewVarNameUtil usedVars (x:xs)
-  | x `elem` usedVars = createNewVarNameUtil usedVars xs
+-- functie care imi creaza un nou nume pentru o variabila
+createNewVarName :: [String] -> String -> String
+createNewVarName usedVars x
+  | x `elem` usedVars = createNewVarName usedVars ( x ++ "#")
   | otherwise = x
-
-changeName :: Expr -> String -> String -> Expr
-changeName (Variable x) old new = if x == old then Variable new else Variable x
-changeName (Function x body) old new = if x == old then Function x body else Function x (changeName body old new)
-changeName (Application e1 e2) old new = Application (changeName e1 old new) (changeName e2 old new)
-
+  
 -- Normal Evaluation
 -- TODO 1.3. perform one step of Normal Evaluation
 stepN :: Expr -> Expr
 stepN (Variable x) = Variable x
-stepN (Function x body) = Function x (stepN body)
-stepN (Application (Function x body) arg) = reduce body x arg
+stepN (Function x func) = Function x (stepN func)
+stepN (Application (Function x func) arg) = reduce func x arg
 stepN (Application e1 e2)
   | isApplication e1 = Application (stepN e1) e2 
   | otherwise = Application e1 (stepN e2)
 
-
+-- functie care verifica daca epresia este de tip Aplication
 isApplication :: Expr -> Bool
 isApplication (Application _ _) = True
 isApplication _ = False
@@ -67,10 +58,10 @@ reduceAllN expr = expr : case stepN expr of
 -- TODO 1.5. perform one step of Applicative Evaluation
 stepA :: Expr -> Expr
 stepA (Variable x) = Variable x
-stepA (Function x body) = Function x (stepA body)
-stepA (Application (Function x body) arg)
-  | isApplication arg = Application (Function x body) (stepA arg)
-  | otherwise = reduce body x arg
+stepA (Function x func) = Function x (stepA func)
+stepA (Application (Function x func) arg)
+  | isApplication arg = Application (Function x func) (stepA arg)
+  | otherwise = reduce func x arg
 stepA (Application e1 e2)
   | isApplication e1 = Application (stepA e1) e2 
   | otherwise = Application e1 (stepA e2)
@@ -89,13 +80,11 @@ reduceAllA expr = expr : case stepA expr of
 
 
 
-
 -- TODO 3.1. make substitutions into a expression with Macros
 evalMacros :: [(String, Expr)] -> Expr -> Expr
--- evalMacros = undefined
 evalMacros ctx expr = case expr of
   Variable x -> expr
-  Function x e -> Function x (evalMacros ctx e)
+  Function x e0 -> Function x (evalMacros ctx e0)
   Application e1 e2 -> Application (evalMacros ctx e1) (evalMacros ctx e2)
   Macro name -> case lookup name ctx of
     Just macroExpr -> evalMacros ctx macroExpr
@@ -104,12 +93,13 @@ evalMacros ctx expr = case expr of
 
 -- TODO 4.1. evaluate code sequence using given strategy
 evalCode :: (Expr -> Expr) -> [Code] -> [Expr]
-evalCode evalStrategy codes = evalCodeHelper [] evalStrategy codes
+evalCode strategy codes = evalCodeHelper [] strategy codes
 
+-- helper pentru functia evalCode
 evalCodeHelper :: [(String, Expr)] -> (Expr -> Expr) -> [Code] -> [Expr]
 evalCodeHelper _ _ [] = []
-evalCodeHelper macros evalStrategy (code:codes) = case code of
-  Evaluate expr -> result : evalCodeHelper macros evalStrategy codes
+evalCodeHelper macros strategy (code:codes) = case code of
+  Evaluate expr -> result : evalCodeHelper macros strategy codes
     where
-      result = evalStrategy (evalMacros macros expr)
-  Assign name expr -> evalCodeHelper ((name, expr) : macros) evalStrategy codes
+      result = strategy (evalMacros macros expr)
+  Assign name expr -> evalCodeHelper ((name, expr) : macros) strategy codes

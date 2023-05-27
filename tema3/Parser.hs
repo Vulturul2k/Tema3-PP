@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use camelCase" #-}
 module Parser (parse_expr, parse_code) where
 
 import Control.Monad
@@ -44,24 +42,15 @@ instance Alternative Parser where
                                 Nothing -> parse p2 s
                                 ok -> ok
 
+--- type declaration over ---
+
 failParser :: Parser a
 failParser = Parser $ \s -> Nothing
 
---- type declaration over ---
-
--- TODO 2.1. parse a expression
-parse_expr :: String -> Expr
-parse_expr s = case parse exprParser ("(" ++ s ++ ")") of
-    Just (expr, _) -> expr
-    Nothing -> error s
-
-exprParser :: Parser Expr
-exprParser = variableParser <|> functionParser <|> applicationParser <|> macroParser
-
-variableParser :: Parser Expr
-variableParser = do
-    x <- predicateParser isAlpha
-    return (Variable [x])
+charParser :: Char -> Parser Char
+charParser c = Parser $ \s -> case s of
+                                [] -> Nothing
+                                (x:xs) -> if x == c then Just (x, xs) else Nothing
 
 predicateParser :: (Char -> Bool) -> Parser Char
 predicateParser testing = Parser $
@@ -69,75 +58,71 @@ predicateParser testing = Parser $
         [] -> Nothing
         (x:xs) -> if testing x then Just (x, xs) else Nothing
 
+skipSpaces :: Parser ()
+skipSpaces = do
+    _ <- many (predicateParser isSpace)
+    return ()
+
+-- TODO 2.1. parse a expression
+parse_expr :: String -> Expr
+parse_expr string = case parse expressionParser ("(" ++ string ++ ")") of
+    Just (expr, _) -> expr
+    Nothing -> error string
+
+expressionParser :: Parser Expr
+expressionParser = variableParser <|> functionParser <|> applicationParser <|> macroParser
+
+variableParser :: Parser Expr
+variableParser = do
+    x <- predicateParser isAlphaNum
+    return (Variable [x])
+
 functionParser :: Parser Expr
 functionParser = do
     _ <- charParser '\\'
-    x <- predicateParser isAlpha
+    x <- predicateParser isAlphaNum
     _ <- charParser '.'
-    e <- exprParser
-    return (Function [x] e)
+    expr <- expressionParser
+    return (Function [x] expr)
 
-exprParserFunc :: Parser Expr
-exprParserFunc = do
-    skipSpaces
-    exprParser
 
 applicationParser :: Parser Expr
 applicationParser = do
     _ <- charParser '('
-    e1 <- exprParser
-    es <- many exprParserFunc
+    expr <- expressionParser
+    exprs <- many (skipSpaces >> expressionParser)
     _ <- charParser ')'
-    return (buildApplication e1 es)
+    return (foldl Application expr exprs)
 
-buildApplication :: Expr -> [Expr] -> Expr
-buildApplication e [] = e
-buildApplication e (e2 : es) = buildApplication (Application e e2) es
-
-
-skipSpaces :: Parser ()
-skipSpaces = do
-    _ <- many (charParser ' ')
-    return ()
-
-
-charParser :: Char -> Parser Char
-charParser c = Parser $ \s -> case s of
-                                [] -> Nothing
-                                (x:xs) -> if x == c then Just (x, xs) else Nothing
 
 macroParser :: Parser Expr
 macroParser = do
     _ <- charParser '$'
-    name <- identifierParser
+    name <- many (predicateParser isAlphaNum)
     return (Macro name)
 
-identifierParser :: Parser String
-identifierParser = do
-    xs <- many (predicateParser isAlpha)
-    return xs
 
 -- TODO 4.2. parse code
 parse_code :: String -> Code
-parse_code s = case parse codeParser s of
+parse_code string = case parse codeParser string of
     Just (code, _) -> code
-    Nothing -> error s
+    Nothing -> error string
 
 codeParser :: Parser Code
 codeParser = assignParser <|> evaluateParser
 
-evaluateParser :: Parser Code
-evaluateParser = do
-  skipSpaces
-  expr <- exprParser
-  exprs <- many (skipSpaces >> exprParser)
-  return (Evaluate (foldl Application expr exprs))
-
 assignParser :: Parser Code
 assignParser = do
-    name <- identifierParser
+    name <- many (predicateParser isAlphaNum)
     skipSpaces
     _ <- charParser '='
     skipSpaces
-    expr <- exprParser
+    expr <- expressionParser
     return (Assign name expr)
+
+evaluateParser :: Parser Code
+evaluateParser = do
+  skipSpaces
+  expr <- expressionParser
+  exprs <- many (skipSpaces >> expressionParser)
+  return (Evaluate (foldl Application expr exprs))
