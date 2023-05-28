@@ -15,12 +15,10 @@ newtype Parser a = Parser {
 --- type declaration ---
 
 instance Monad Parser where
-  --(>>=) :: m a -> (a -> m b) -> m b
   mp >>= f =
     Parser $ \s -> case parse mp s of
                       Nothing -> Nothing
                       Just(x,s') -> parse (f x) s' 
-  --return :: a -> m a
   return :: a -> Parser a
   return x = Parser $ \s -> Just(x,s)
 
