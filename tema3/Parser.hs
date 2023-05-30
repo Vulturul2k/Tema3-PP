@@ -120,7 +120,6 @@ assignParser = do
 
 evaluateParser :: Parser Code
 evaluateParser = do
-  skipSpaces
   expr <- expressionParser
   exprs <- many (skipSpaces >> expressionParser)
   return (Evaluate (foldl Application expr exprs))
